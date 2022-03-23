@@ -33,18 +33,20 @@ def proclog(fn=None):
 
 def prepdata(millis=None, vals=None):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
-	data_start=4000 # Picking a smaller window to examine
-	data_end=5000 # Picking a smaller window to examine
+	data_start=3800 # Picking a smaller window to examine
+	data_end=6000 # Picking a smaller window to examine
 	ms=millis[data_start:data_end]
 	vv=vals[data_start:data_end]
 	yf = fft(vv)
 	#yf[50:700] = 0
 	reval = np.fft.ifft(yf)
-	plt.plot(vv, label='Orig')
+	fig, axs = plt.subplots(2)
+	axs[0].plot(ms, vv, label='ECG Data')
+	axs[0].legend()
 	yf[0:2]=0
-	plt.plot(yf.real, label='FFT')
-	plt.plot(reval.real, label='iFT')
-	plt.legend()
+	axs[1].plot(yf.real, label='FFT')
+	axs[1].plot(reval.real, label='iFFT')
+	axs[1].legend()
 	plt.show()
 	#plt.ion(); plt.pause(0.05); plt.pause(0.05)
 	#ipdb.set_trace()
