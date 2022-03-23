@@ -31,21 +31,48 @@ def proclog(fn=None):
 			millis.append(ms)
 	return np.array(millis), np.array(vals)
 
+def calc_sampling_rate(timedata, time_units=None):
+	# Calculate average Hz of given times.
+	#  Example time_units:
+	#   time_units = .001 (or 1e-3) for millisecond data
+	#   time_units = .000001 (or 1e-6) for uS data
+	# 1. First we generate an array of the deltas (differences in time)
+	aa = [timedata[i+1] - float(timedata[i]) for i in range(len(timedata)-1)]
+	#print([a for a in enumerate(aa)])
+	avg = sum(aa)/len(aa)
+	# 2. Filter outliers
+	#  (These exist because of jumps in the sampling data that we
+	#  got when removing invalid sensor data, like a lot of 2s and
+	#  1024s we got from moving around or disconnecting the electrodes)
+	aa = [x for x in aa if (abs(x-avg)/avg) < 1.5]
+	# 3. Recalculate avg
+	avg = sum(aa)/len(aa)
+	sam_per_sec = (1/time_units) / avg
+	return sam_per_sec
+
 def prepdata(millis=None, vals=None):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
 	data_start=3800 # Picking a smaller window to examine
 	data_end=6000 # Picking a smaller window to examine
+
+	# Let's calculate the sampling rate based on the full data
+	sam_per_sec = calc_sampling_rate(millis, time_units=1e-3)
+	print(f"Calculated avg sampling rate: {sam_per_sec} Hz")
 	ms=millis[data_start:data_end]
 	vv=vals[data_start:data_end]
 	yf = fft(vv)
+	# Our MCU code presently is trying to sample at 250Hz,
+	# but our calculated sampling rate ends up being less (248.x Hz)
+	# freqs = fftfreq(vv.shape[0], 1/250)
+	freqs = fftfreq(vv.shape[0], 1/sam_per_sec)
 	#yf[50:700] = 0
 	reval = np.fft.ifft(yf)
 	fig, axs = plt.subplots(2)
 	axs[0].plot(ms, vv, label='ECG Data')
 	axs[0].legend()
 	yf[0:2]=0
-	axs[1].plot(yf.real, label='FFT')
-	axs[1].plot(reval.real, label='iFFT')
+	axs[1].plot(freqs, yf.real, label='FFT')
+	# axs[1].plot(reval.real, label='iFFT')
 	axs[1].legend()
 	plt.show()
 	#plt.ion(); plt.pause(0.05); plt.pause(0.05)
