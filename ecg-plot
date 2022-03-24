@@ -61,7 +61,7 @@ def prepdata(millis=None, vals=None):
 	print(f"Calculated avg sampling rate: {sam_per_sec} Hz")
 	ms=millis[data_start:data_end]
 	vv=vals[data_start:data_end]
-	yf = fft(vv)
+	ff = fft(vv)
 	# Our MCU code presently is trying to sample at 250Hz,
 	# but our calculated sampling rate ends up being less (248.x Hz)
 	# freqs = fftfreq(vv.shape[0], 1/250)
@@ -70,22 +70,20 @@ def prepdata(millis=None, vals=None):
 	# distance is somewhat arbitrary, but wider is probably better for
 	# our use (finding the 60hz signal)
 	freqs = fftfreq(vv.shape[0], 1/sam_per_sec)
-	peaks, peakprops = find_peaks(yf.real, distance=sam_per_sec); print("Peak count:", len(peaks))
-	#yf[50:700] = 0
-	reval = np.fft.ifft(yf)
+	peak_distance = sam_per_sec/2
+	peaks, peakprops = find_peaks(ff.real, distance=peak_distance)
+	print("Peak count:", len(peaks))
+	#ff[50:700] = 0
+	#ff[0:2]=0
+	reval = np.fft.ifft(ff)
 	fig, axs = plt.subplots(2)
 	axs[0].plot(ms, vv, label='ECG Data')
 	axs[0].legend()
-	yf[0:2]=0
-	axs[1].plot(freqs, yf.real, label='FFT')
+	axs[1].plot(freqs, ff.real, label='FFT')
 	# axs[1].plot(reval.real, label='iFFT')
 	print("Frequencies:", freqs)
 	midfreqidx = len(freqs)//2 - 1
 	maxfreq = freqs[midfreqidx]
-	amplitude_maybe = yf[acfreqidx] / len(yf)*4
-	print("Max freq ?", freqs[midfreqidx-2: midfreqidx+2])
-	print("Max freq :", maxfreq)
-	print("Amplitude:", amplitude_maybe)
 	# \/ for labeling the axvline frequencies at the axis itself
 	trans = axs[1].get_xaxis_transform()
 	acfreqidx=None
@@ -108,6 +106,11 @@ def prepdata(millis=None, vals=None):
 				transform=trans,
 				rotation=-75
 				)
+	amplitude_maybe = ff[acfreqidx] / len(ff)*4
+	print("Max freq ?", freqs[midfreqidx-2: midfreqidx+2])
+	print("Max freq :", maxfreq)
+	print("FF[acfreqidx]:", ff[acfreqidx])
+	print("Amplitude maybe:", amplitude_maybe)
 	print("Peak indices:", peaks)
 	print("Peaks frequencies:", [freqs[i] for i in peaks])
 	if acfreqidx is None:
@@ -115,10 +118,11 @@ def prepdata(millis=None, vals=None):
 	else:
 		print(f"Found AC frequency peak at freqs idx [{acfreqidx}].")
 		print(f" Freq {freqs[acfreqidx]}.")
-		print(f" FFT amplitude {yf[acfreqidx]}.")
+		print(f" FFT amplitude {ff[acfreqidx]}.")
 		print(f" ")
 	# plt.ion()
 	axs[1].legend()
+	ipdb.set_trace()
 	plt.show()
 	plt.pause(0.05)
 	plt.pause(1)
@@ -127,8 +131,8 @@ def prepdata(millis=None, vals=None):
 	#ipdb.set_trace()
 	return
 	xf = fftfreq(N, T)[:N//2]
-	print(yf)
-	plt.plot(xf, 2.0/N * np.abs(yf[0:N//2]))
+	print(ff)
+	plt.plot(xf, 2.0/N * np.abs(ff[0:N//2]))
 	plt.grid()
 	plt.show()
 	#histo = np.histogram(vals, bins=50)

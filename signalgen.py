@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import ipdb
 
 def sine_wave_samps(f=None,
                     phase=0,
@@ -30,10 +31,9 @@ def sine_wave_samps(f=None,
 	return (t,g) # return time base and signal g(t) as tuple
 
 def test():
-	import ipdb
 	import matplotlib.pyplot as plt
 	(t,g) = sine_wave_samps(f=60,
-	                        phase=np.pi/4,
+	                        phase=np.pi/2,
 	                        samplerate=60*16,
 	                        totsamps=16*2+1)
 	print("Timebase:")
