@@ -6,6 +6,7 @@ import re
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.fft import fft, ifft, fftfreq
+from scipy.signal import find_peaks
 
 # logdir="/tmp/tcpserver_data" #  .../2022-03-22--04:14AM
 
@@ -53,7 +54,7 @@ def calc_sampling_rate(timedata, time_units=None):
 def prepdata(millis=None, vals=None):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
 	data_start=3800 # Picking a smaller window to examine
-	data_end=6000 # Picking a smaller window to examine
+	data_end=5000 # Picking a smaller window to examine
 
 	# Let's calculate the sampling rate based on the full data
 	sam_per_sec = calc_sampling_rate(millis, time_units=1e-3)
@@ -64,7 +65,12 @@ def prepdata(millis=None, vals=None):
 	# Our MCU code presently is trying to sample at 250Hz,
 	# but our calculated sampling rate ends up being less (248.x Hz)
 	# freqs = fftfreq(vv.shape[0], 1/250)
+
+	# Detect peaks
+	# distance is somewhat arbitrary, but wider is probably better for
+	# our use (finding the 60hz signal)
 	freqs = fftfreq(vv.shape[0], 1/sam_per_sec)
+	peaks, peakprops = find_peaks(yf.real, distance=sam_per_sec); print("Peak count:", len(peaks))
 	#yf[50:700] = 0
 	reval = np.fft.ifft(yf)
 	fig, axs = plt.subplots(2)
@@ -73,8 +79,50 @@ def prepdata(millis=None, vals=None):
 	yf[0:2]=0
 	axs[1].plot(freqs, yf.real, label='FFT')
 	# axs[1].plot(reval.real, label='iFFT')
+	print("Frequencies:", freqs)
+	midfreqidx = len(freqs)//2 - 1
+	maxfreq = freqs[midfreqidx]
+	amplitude_maybe = yf[acfreqidx] / len(yf)*4
+	print("Max freq ?", freqs[midfreqidx-2: midfreqidx+2])
+	print("Max freq :", maxfreq)
+	print("Amplitude:", amplitude_maybe)
+	# \/ for labeling the axvline frequencies at the axis itself
+	trans = axs[1].get_xaxis_transform()
+	acfreqidx=None
+	for peakidx in peaks:
+		if freqs[peakidx] > 45 and freqs[peakidx] < 65: # our Hz
+			acfreqidx = peakidx
+			color=(.75,0,0)
+			width=4
+		else:
+			color=(0,.75,0)
+			width=2
+		axs[1].axvline(x=freqs[peakidx],
+		               color=color,
+		               linewidth=width,
+		               alpha=.20)
+		#print(f"Text at {freqs[peakidx]:.3f}")
+		axs[1].text(
+		        freqs[peakidx], 0,
+				f"{freqs[peakidx]:.3f}",
+				transform=trans,
+				rotation=-75
+				)
+	print("Peak indices:", peaks)
+	print("Peaks frequencies:", [freqs[i] for i in peaks])
+	if acfreqidx is None:
+		print("*ERROR: Couldn't find AC frequency!")
+	else:
+		print(f"Found AC frequency peak at freqs idx [{acfreqidx}].")
+		print(f" Freq {freqs[acfreqidx]}.")
+		print(f" FFT amplitude {yf[acfreqidx]}.")
+		print(f" ")
+	# plt.ion()
 	axs[1].legend()
 	plt.show()
+	plt.pause(0.05)
+	plt.pause(1)
+	ipdb.set_trace()
 	#plt.ion(); plt.pause(0.05); plt.pause(0.05)
 	#ipdb.set_trace()
 	return
