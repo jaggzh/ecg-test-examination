@@ -6,7 +6,8 @@ import re
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.fft import fft, ifft, fftfreq
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, butter, lfilter, freqz
+from signalgen import sine_wave_samps
 
 # logdir="/tmp/tcpserver_data" #  .../2022-03-22--04:14AM
 
@@ -51,6 +52,14 @@ def calc_sampling_rate(timedata, time_units=None):
 	sam_per_sec = (1/time_units) / avg
 	return sam_per_sec
 
+def butter_lowpass(cutoff, fs, order=5):
+    return butter(order, cutoff, fs=fs, btype='low', analog=False)
+
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+
 def prepdata(millis=None, vals=None):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
 	data_start=3800 # Picking a smaller window to examine
@@ -78,7 +87,8 @@ def prepdata(millis=None, vals=None):
 	reval = np.fft.ifft(ff)
 	fig, axs = plt.subplots(2)
 	axs[0].plot(ms, vv, label='ECG Data')
-	axs[0].legend()
+	filtered = butter_lowpass_filter(vv, 45, sam_per_sec, order=5)
+	axs[0].plot(ms, filtered, label='ECG Filtered')
 	axs[1].plot(freqs, ff.real, label='FFT')
 	# axs[1].plot(reval.real, label='iFFT')
 	print("Frequencies:", freqs)
@@ -106,13 +116,16 @@ def prepdata(millis=None, vals=None):
 				transform=trans,
 				rotation=-75
 				)
-	amplitude_maybe = ff[acfreqidx] / len(ff)*4
+	amplitude_maybe = (ff[acfreqidx].real / len(ff))*2
 	print("Max freq ?", freqs[midfreqidx-2: midfreqidx+2])
 	print("Max freq :", maxfreq)
-	print("FF[acfreqidx]:", ff[acfreqidx])
 	print("Amplitude maybe:", amplitude_maybe)
 	print("Peak indices:", peaks)
 	print("Peaks frequencies:", [freqs[i] for i in peaks])
+	print("60Hz Freq: ff[acfreqidx]:", ff[acfreqidx])
+	phase60 = ff[acfreqidx].imag
+	print("60Hz Phase: ff[acfreqidx].imaj:", phase60)
+	print("60Hz Phase: ff[acfreqidx].imaj:", phase60 * np.pi / 180)
 	if acfreqidx is None:
 		print("*ERROR: Couldn't find AC frequency!")
 	else:
@@ -120,24 +133,22 @@ def prepdata(millis=None, vals=None):
 		print(f" Freq {freqs[acfreqidx]}.")
 		print(f" FFT amplitude {ff[acfreqidx]}.")
 		print(f" ")
-	# plt.ion()
+	# When generating sine wave, negate phase so we're offsetting it to match
+	s60time, s60 = sine_wave_samps(f=freqs[acfreqidx], samplerate=sam_per_sec, totsamps=len(vv), phase=-phase60)
+	axs[0].plot(ms, s60 * amplitude_maybe + 400, label="sin60")
+	axs[0].plot(ms, (vv-(s60 * amplitude_maybe)), label="ECG-sin60")
+	axs[0].axhline(y=400,
+				   color=(0,0,1),
+				   linewidth=1,
+				   alpha=.30)
+
+	axs[0].legend()
 	axs[1].legend()
-	ipdb.set_trace()
-	plt.show()
-	plt.pause(0.05)
-	plt.pause(1)
-	ipdb.set_trace()
-	#plt.ion(); plt.pause(0.05); plt.pause(0.05)
-	#ipdb.set_trace()
-	return
-	xf = fftfreq(N, T)[:N//2]
-	print(ff)
-	plt.plot(xf, 2.0/N * np.abs(ff[0:N//2]))
 	plt.grid()
-	plt.show()
-	#histo = np.histogram(vals, bins=50)
-	#plt.hist(vals)
-	#plt.show()
+	# plt.ion()
+	plt.show(); plt.pause(0.05); plt.pause(0.05)
+	ipdb.set_trace()
+	return
 
 def main():
 	millis, vals = proclog(logfn)
