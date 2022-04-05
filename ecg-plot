@@ -6,7 +6,7 @@ import re
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.fft import fft, ifft, fftfreq
-from scipy.signal import find_peaks, butter, lfilter, freqz
+from scipy.signal import find_peaks, butter, lfilter, freqz, iirnotch
 from signalgen import sine_wave_samps
 
 # logdir="/tmp/tcpserver_data" #  .../2022-03-22--04:14AM
@@ -60,6 +60,19 @@ def butter_lowpass_filter(data, cutoff, fs, order=5):
     y = lfilter(b, a, data)
     return y
 
+def notch(data, f, fs=None, quality=30):
+	notch_num, notch_den = iirnotch(f, quality, fs=fs)
+	return lfilter(notch_num, notch_den, data)
+
+def bandstop(data, lowcut, highcut, fs=None, order=2):
+	nyq = 0.5 * fs
+	low = lowcut / nyq
+	high = highcut / nyq
+
+	i, u = butter(order, [low, high], btype='bandstop')
+	y = lfilter(i, u, data)
+	return y
+
 def prepdata(millis=None, vals=None):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
 	data_start=3800 # Picking a smaller window to examine
@@ -71,6 +84,7 @@ def prepdata(millis=None, vals=None):
 	ms=millis[data_start:data_end]
 	vv=vals[data_start:data_end]
 	ff = fft(vv)
+	#ff[len(ff)//2+1] = 0
 	# Our MCU code presently is trying to sample at 250Hz,
 	# but our calculated sampling rate ends up being less (248.x Hz)
 	# freqs = fftfreq(vv.shape[0], 1/250)
@@ -85,11 +99,17 @@ def prepdata(millis=None, vals=None):
 	#ff[50:700] = 0
 	#ff[0:2]=0
 	reval = np.fft.ifft(ff)
-	fig, axs = plt.subplots(2)
+	fig, axs = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3,1]})
+	fig.tight_layout()
 	axs[0].plot(ms, vv, label='ECG Data')
-	filtered = butter_lowpass_filter(vv, 45, sam_per_sec, order=5)
-	axs[0].plot(ms, filtered, label='ECG Filtered')
+
+	# Lowpass
+	# filtered = butter_lowpass_filter(vv, 45, sam_per_sec, order=5)
+	# axs[0].plot(ms, filtered, label='ECG Filtered')
+
+	ff[0]=0
 	axs[1].plot(freqs, ff.real, label='FFT')
+	#axs[1].plot(ff.real, label='FFT')
 	# axs[1].plot(reval.real, label='iFFT')
 	print("Frequencies:", freqs)
 	midfreqidx = len(freqs)//2 - 1
@@ -133,14 +153,34 @@ def prepdata(millis=None, vals=None):
 		print(f" Freq {freqs[acfreqidx]}.")
 		print(f" FFT amplitude {ff[acfreqidx]}.")
 		print(f" ")
+
+	# Notch filter
+	filtered = notch(vv, freqs[acfreqidx], sam_per_sec, quality=10)
+	axs[0].plot(ms, filtered, label=f"Notch-Filtered +{freqs[acfreqidx]:.2f}Hz q10")
+	filtered = notch(vv, 60, sam_per_sec, quality=10)
+	axs[0].plot(ms, filtered, label="Notch-Filtered 60Hz q10")
+
+	# # Good
+	# # 59,60,61 notch works well
+	# filtered = notch(vv, 59, sam_per_sec, quality=10)
+	# filtered = notch(filtered, 60, sam_per_sec, quality=10)
+	# filtered = notch(filtered, 61, sam_per_sec, quality=10)
+	# axs[0].plot(ms, filtered, label="Notch-Filtered 59,60,61 q10")
+
+	# filtered = bandstop(vv, 50, 65, fs=sam_per_sec, order=2)
+	# axs[0].plot(ms, filtered, label="Bandstop 50-65 o2")
+	# filtered = bandstop(vv, 50, 65, fs=sam_per_sec, order=10)
+	# axs[0].plot(ms, filtered, label="Bandstop 50-65 o10")
+
+	# Sine-wave 60Hz (detected = exact) removal:
 	# When generating sine wave, negate phase so we're offsetting it to match
-	s60time, s60 = sine_wave_samps(f=freqs[acfreqidx], samplerate=sam_per_sec, totsamps=len(vv), phase=-phase60)
-	axs[0].plot(ms, s60 * amplitude_maybe + 400, label="sin60")
-	axs[0].plot(ms, (vv-(s60 * amplitude_maybe)), label="ECG-sin60")
-	axs[0].axhline(y=400,
-				   color=(0,0,1),
-				   linewidth=1,
-				   alpha=.30)
+	# s60time, s60 = sine_wave_samps(f=freqs[acfreqidx], fs=sam_per_sec, totsamps=len(vv), phase=-phase60)
+	# axs[0].plot(ms, s60 * amplitude_maybe + 400, label="sin60")
+	# axs[0].plot(ms, (vv-(s60 * amplitude_maybe)), label="ECG-sin60")
+	# axs[0].axhline(y=400,
+	# 			   color=(0,0,1),
+	# 			   linewidth=1,
+	# 			   alpha=.30)
 
 	axs[0].legend()
 	axs[1].legend()
