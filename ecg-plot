@@ -15,7 +15,7 @@ from signalgen import sine_wave_samps
 # files.sort()
 # logfn = join(logdir, files[-1])
 
-logfn="sample.dat"  # Line format: millis value
+logfn="sample2.dat"  # Line format: millis value
 print("Using logfile:", logfn)
 
 def proclog(fn=None):
@@ -73,7 +73,7 @@ def bandstop(data, lowcut, highcut, fs=None, order=2):
 	y = lfilter(i, u, data)
 	return y
 
-def prepdata(millis=None, vals=None):
+def prepdata(millis=None, vals=None, plotraw=False):
 	#x = np.linspace(0.0, N*T, N, endpoint=False)
 	data_start=3800 # Picking a smaller window to examine
 	data_end=5000 # Picking a smaller window to examine
@@ -83,6 +83,8 @@ def prepdata(millis=None, vals=None):
 	print(f"Calculated avg sampling rate: {sam_per_sec} Hz")
 	ms=millis[data_start:data_end]
 	vv=vals[data_start:data_end]
+	ms=millis
+	vv=vals
 	ff = fft(vv)
 	#ff[len(ff)//2+1] = 0
 	# Our MCU code presently is trying to sample at 250Hz,
@@ -101,7 +103,11 @@ def prepdata(millis=None, vals=None):
 	reval = np.fft.ifft(ff)
 	fig, axs = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3,1]})
 	fig.tight_layout()
-	axs[0].plot(ms, vv, label='ECG Data')
+	if plotraw:
+		axs[0].plot(ms,
+					vv,
+					label='ECG Data',
+					linewidth=1)
 
 	# Lowpass
 	# filtered = butter_lowpass_filter(vv, 45, sam_per_sec, order=5)
@@ -147,18 +153,24 @@ def prepdata(millis=None, vals=None):
 	print("60Hz Phase: ff[acfreqidx].imaj:", phase60)
 	print("60Hz Phase: ff[acfreqidx].imaj:", phase60 * np.pi / 180)
 	if acfreqidx is None:
-		print("*ERROR: Couldn't find AC frequency!")
+		print("*WARNING: Couldn't find AC frequency!")
 	else:
 		print(f"Found AC frequency peak at freqs idx [{acfreqidx}].")
 		print(f" Freq {freqs[acfreqidx]}.")
 		print(f" FFT amplitude {ff[acfreqidx]}.")
 		print(f" ")
 
-	# Notch filter
-	filtered = notch(vv, freqs[acfreqidx], sam_per_sec, quality=10)
-	axs[0].plot(ms, filtered, label=f"Notch-Filtered +{freqs[acfreqidx]:.2f}Hz q10")
-	filtered = notch(vv, 60, sam_per_sec, quality=10)
-	axs[0].plot(ms, filtered, label="Notch-Filtered 60Hz q10")
+		# Notch filter
+		filtered = notch(vv, freqs[acfreqidx], sam_per_sec, quality=10)
+		axs[0].plot(ms,
+		            filtered,
+		            label=f"Notch-Filtered +{freqs[acfreqidx]:.2f}Hz q10",
+		            linewidth=2)
+		filtered = notch(vv, 60, sam_per_sec, quality=10)
+		axs[0].plot(ms,
+		            filtered,
+		            label="Notch-Filtered 60Hz q10",
+		            linewidth=2)
 
 	# # Good
 	# # 59,60,61 notch works well
@@ -187,12 +199,13 @@ def prepdata(millis=None, vals=None):
 	plt.grid()
 	# plt.ion()
 	plt.show(); plt.pause(0.05); plt.pause(0.05)
-	ipdb.set_trace()
+	# ipdb.set_trace()
 	return
 
 def main():
 	millis, vals = proclog(logfn)
-	prepdata(millis=millis, vals=vals)
+	#prepdata(millis=millis, vals=vals, plotraw=False)
+	prepdata(millis=millis, vals=vals, plotraw=True)
 
 main()
 
